@@ -336,7 +336,20 @@ local function init()
     if setSerialBaudrate then setSerialBaudrate(baud()) end
 end
 
+-- Releasing a long press always delivers a plain ENTER right afterwards, and
+-- killEvents cannot stop it: IS_MASKABLE in the firmware excludes ENTER on
+-- every radio, and the break is pushed deliberately because other scripts rely
+-- on it. Sending the name therefore used to land back on the menu with an
+-- ENTER still queued, which activated the highlighted row and reopened the
+-- editor. The stray press is swallowed here instead.
+local eatEnter = false
+
 local function run(event)
+    if eatEnter then
+        eatEnter = false
+        if event == EVT_VIRTUAL_ENTER then event = 0 end
+    end
+
     if editing then
         if event == EVT_VIRTUAL_EXIT then
             editing = false
@@ -346,8 +359,7 @@ local function run(event)
         elseif event == EVT_VIRTUAL_PREV then
             bumpChar(-1)
         elseif event == EVT_VIRTUAL_ENTER_LONG then
-            -- otherwise the release is delivered as a plain ENTER and reopens this
-            if killEvents then killEvents(EVT_VIRTUAL_ENTER) end
+            eatEnter = true
             editing = false
             if dialect == 3 then
                 send("AT+NAME=" .. trimmed())
