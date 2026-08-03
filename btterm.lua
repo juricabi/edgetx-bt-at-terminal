@@ -224,9 +224,12 @@ local items = {
     },
     { l = function() return "Version    " .. (queryCmd("version") or "n/a") end,
       a = function() query("version") end },
-    { l = function() return "Read name  AT+NAME" end,        a = function() query("NAME") end },
-    { l = function() return "MAC addr   AT+LADDR" end,         a = function() query("LADDR") end },
-    { l = function() return "Baud now   AT+BAUD" end,        a = function() query("BAUD") end },
+    { l = function() return "Read name  " .. (queryCmd("name") or "n/a") end,
+      a = function() query("name") end },
+    { l = function() return "MAC addr   " .. (queryCmd("addr") or "n/a") end,
+      a = function() query("addr") end },
+    { l = function() return "Baud now   " .. (queryCmd("baud") or "n/a") end,
+      a = function() query("baud") end },
         {
         l = function()
             if dialect == 3 then return "Set baud > " .. target() .. " AT+UART" end
