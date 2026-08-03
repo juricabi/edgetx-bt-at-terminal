@@ -9,8 +9,10 @@ you have forgotten what speed it is set to.
 
 ![EdgeTX BT AT terminal running on a HelloRadioSky V12](screenshot.png)
 
-Works with **DX-BT24 / BT24-S / BT27**, **HM-10 / AT-09 / BLE clones**,
-**HC-05** and **HC-06** modules.
+Written for **DX-BT24 / BT24-S / BT27** modules, which it supports fully.
+**HM-10 / AT-09**, **HC-05** and **HC-06** are also selectable: changing the
+baud rate and resetting work on all of them, but not every module answers every
+query, and HC-06 has no query syntax at all.
 
 ## Why
 
@@ -31,8 +33,8 @@ shows the exact command it is about to send, so you can see what you are doing.
 2. On the radio: **SYS → HARDWARE → Serial ports**, set **one AUX port to LUA**.
 3. Open **SYS → Tools → BT AT terminal**.
 
-Setting more than one port to LUA does not work: EdgeTX applies the baud rate to
-the first LUA port and sends the data out of the last one.
+Current EdgeTX only lets one port be LUA at a time, so this is normally taken
+care of for you.
 
 When you are done, set the port back to **Telemetry mirror** (or whatever it was)
 for normal use.
@@ -67,8 +69,9 @@ Restart    AT+RESET
 rate that did not stick, or on a module of unknown origin.
 
 **Renaming:** pick one of the presets, or use **Edit name** to type a custom one
-(`+/-` change the letter, `ENT` moves to the next, long `ENT` sends). A reset is
-needed for the new name to appear.
+(`+/-` change the letter, `ENT` moves to the next character and adds one at the
+end, hold `ENT` to send, `EXIT` to cancel). A reset is needed for the new name to
+appear.
 
 ## Baud rate numbering
 
@@ -108,10 +111,11 @@ your module's particular firmware. The **BT24-T**, for example, does not have
 
 ## Radio compatibility
 
-The layout adapts to the screen, so it works on colour and black and white
-radios alike: it has been laid out for 128x64, 212x64, 320x240, 320x480, 480x272
-and 480x320 displays. Tested on a **HelloRadioSky V12** (320x240) with a
-**DX-BT24-T** module.
+The layout adapts to the screen and has row spacing for black and white radios,
+the small font set (320x240), the standard set (320x480, 480x272, 480x320) and
+the large set (800x480). It has only been **tested on a HelloRadioSky V12**
+(320x240) with a **DX-BT24-T** module; on other radios expect it to work but
+please report anything that looks wrong.
 
 Any radio running EdgeTX with a spare serial port will do — AUX1, AUX2 or the
 USB VCP, whichever one you set to LUA.

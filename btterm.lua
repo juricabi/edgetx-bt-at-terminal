@@ -14,10 +14,22 @@ local toolName = "TNS|BT AT terminal|TNE"
 -- is required before a new baud takes effect.
 
 -- screen metrics, so the tool fits colour and black and white radios alike
-local BIG = LCD_H >= 100                -- colour screens; 64px radios stay compact
-local LH = BIG and 12 or 8              -- line height
-local LOGN = BIG and 5 or 2             -- log lines kept on screen
-local VISIBLE = math.floor((LCD_H - (LOGN + 1) * LH - 4) / LH)
+-- Row pitch has to clear the font AND the highlight box the radio draws for
+-- INVERS, which is the font height plus four. The small font differs per
+-- screen class, so pick a pitch that fits the worst case of each.
+local BIG = LCD_H >= 100
+local LH
+if not BIG then
+    LH = 8                              -- 4x6 font on black and white radios
+elseif LCD_W >= 800 then
+    LH = 26                             -- large font set
+elseif LCD_W <= 320 and LCD_H <= 240 then
+    LH = 18                             -- small font set
+else
+    LH = 21                             -- standard font set
+end
+local LOGN = BIG and 4 or 2             -- log lines kept on screen
+local VISIBLE = math.floor((LCD_H - (LOGN + 1) * LH - 6) / LH)
 if VISIBLE < 3 then VISIBLE = 3 end
 
 local CRLF = string.char(13, 10)
@@ -38,7 +50,7 @@ local dialect = 1
 local sel = 1
 local log = {}
 local rxPart = ""
-local hint = "set one AUX port to LUA in SYS/HW"
+local hint = "set one AUX port to LUA"
 local CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_ "
 local PRESETS = {
     "HelloRadioV12", "V12-BT", "TX16S-BT", "Radiomaster",
@@ -60,7 +72,6 @@ local ERRORS = {
 }
 
 local function addLog(line)
-    sawReply = true
     log[#log + 1] = line
     local code = string.match(line, "ERROR=(%d+)")
     if code and ERRORS[code] then
@@ -77,6 +88,10 @@ local function needsCrLf()
 end
 
 local function send(cmd)
+    if not serialWrite then
+        addLog("no serial port in LUA mode")
+        return
+    end
     if needsCrLf() then
         serialWrite(cmd .. CRLF)
     else
@@ -85,11 +100,24 @@ local function send(cmd)
     addLog("> " .. cmd)
 end
 
-local function query(name)
-    if dialect == 1 then
-        send("AT+" .. name)                  -- DX-BT24 queries have no suffix
+-- Each family words its queries differently; HC-06 has almost none.
+local QUERIES = {
+    { version = "AT+VERSION",  name = "AT+NAME",  addr = "AT+LADDR", baud = "AT+BAUD"  },
+    { version = "AT+VERSION",  name = "AT+NAME?", addr = "AT+ADDR?", baud = "AT+BAUD?" },
+    { version = "AT+VERSION?", name = "AT+NAME?", addr = "AT+ADDR?", baud = "AT+UART?" },
+    { version = "AT+VERSION" },
+}
+
+local function queryCmd(kind)
+    return QUERIES[dialect][kind]
+end
+
+local function query(kind)
+    local cmd = queryCmd(kind)
+    if cmd then
+        send(cmd)
     else
-        send("AT+" .. name .. "?")
+        addLog("not on " .. DIALECTS[dialect])
     end
 end
 
@@ -132,6 +160,7 @@ local function scanStep()
         return
     end
     baudIndex = scanIdx
+    rxPart = ""                              -- drop framing noise from the last rate
     if setSerialBaudrate then setSerialBaudrate(baud()) end
     hint = "trying " .. baud() .. " ..."
     sawReply = false
@@ -193,7 +222,8 @@ local items = {
             hint = "scanning..."
         end
     },
-    { l = function() return "Version   AT+VERSION" end,     a = function() query("VERSION") end },
+    { l = function() return "Version    " .. (queryCmd("version") or "n/a") end,
+      a = function() query("version") end },
     { l = function() return "Read name  AT+NAME" end,        a = function() query("NAME") end },
     { l = function() return "MAC addr   AT+LADDR" end,         a = function() query("LADDR") end },
     { l = function() return "Baud now   AT+BAUD" end,        a = function() query("BAUD") end },
@@ -218,7 +248,7 @@ local items = {
         a = function()
             if dialect == 1 then
                 send("AT+TRANSPORT0")
-                hint = "telemetry stops until set back"
+                hint = "telemetry off until set back"
             else
                 addLog("DX-BT24 only")
             end
@@ -236,7 +266,7 @@ local items = {
         end
     },
     { l = function() return "Read mode  AT+TRANSPORT" end,
-      a = function() if dialect == 1 then query("TRANSPORT") else addLog("DX-BT24 only") end end },
+      a = function() if dialect == 1 then send("AT+TRANSPORT") else addLog("DX-BT24 only") end end },
     { l = function() return "Unpair     AT+DISC" end,
       a = function() if dialect == 1 then send("AT+DISC") else addLog("DX-BT24 only") end end },
     {
@@ -251,7 +281,11 @@ local items = {
     {
         l = function() return "Send name  AT+NAME" .. trimmed() end,
         a = function()
-            send("AT+NAME" .. trimmed())
+            if dialect == 3 then
+                send("AT+NAME=" .. trimmed())
+            else
+                send("AT+NAME" .. trimmed())
+            end
             hint = "reset to apply the name"
         end
     },
@@ -260,7 +294,7 @@ local items = {
         a = function()
             editing = true
             cursor = 1
-            hint = "+- char, ENT next, long ENT send"
+            hint = "+- char, ENT next, hold ENT=send"
         end
     },
     {
@@ -284,7 +318,13 @@ local function readSerial()
         if not p then break end
         local line = string.sub(rxPart, 1, p - 1)
         rxPart = string.sub(rxPart, p + 1)
-        if #line > 0 then addLog(line) end
+        if #line > 0 then
+            addLog(line)
+            -- only a real answer ends a scan, not our own status lines
+            if string.find(line, "OK", 1, true) or string.find(line, "+", 1, true) then
+                sawReply = true
+            end
+        end
     end
     if #rxPart > 26 then addLog(rxPart); rxPart = "" end
 end
@@ -303,8 +343,14 @@ local function run(event)
         elseif event == EVT_VIRTUAL_PREV then
             bumpChar(-1)
         elseif event == EVT_VIRTUAL_ENTER_LONG then
+            -- otherwise the release is delivered as a plain ENTER and reopens this
+            if killEvents then killEvents(EVT_VIRTUAL_ENTER) end
             editing = false
-            send("AT+NAME" .. trimmed())
+            if dialect == 3 then
+                send("AT+NAME=" .. trimmed())
+            else
+                send("AT+NAME" .. trimmed())
+            end
             hint = "reset to apply the name"
         elseif event == EVT_VIRTUAL_ENTER then
             if cursor < #nameStr then
@@ -340,7 +386,7 @@ local function run(event)
         lcd.drawText(2, y, items[i].l(), SMLSIZE + (i == sel and INVERS or 0))
         y = y + LH
     end
-    lcd.drawText(LCD_W - 28, 1, sel .. "/" .. #items, SMLSIZE)
+    lcd.drawText(LCD_W - (BIG and 46 or 26), 1, sel .. "/" .. #items, SMLSIZE)
 
     lcd.drawLine(0, y + 1, LCD_W - 1, y + 1, SOLID, 0)
 
