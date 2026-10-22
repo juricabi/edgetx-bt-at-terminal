@@ -29,7 +29,9 @@ shows the exact command it is about to send, so you can see what you are doing.
 
 ## Install
 
-1. Copy `btterm.lua` to `SCRIPTS/TOOLS/` on the SD card.
+1. Download the zip from the [latest release](https://github.com/juricabi/edgetx-bt-at-terminal/releases/latest)
+   and extract it to the root of the SD card, or copy `btterm.lua` to
+   `SCRIPTS/TOOLS/` yourself.
 2. On the radio: **SYS → HARDWARE → Serial ports**, set **one AUX port to LUA**.
 3. Open **SYS → Tools → BT AT terminal**.
 
