@@ -131,6 +131,10 @@ USB VCP, whichever one you set to LUA.
 
 ## Related
 
+**The story behind this tool:**
+[DX-BT24-T Bluetooth telemetry on a HelloRadioSky V12](docs/bt24-v12-telemetry.md): getting CRSF
+telemetry from the radio to a phone app, the module's facts, and every pitfall on the way.
+
 Found while fixing two EdgeTX bugs that broke Ghost telemetry over a serial
 port:
 
